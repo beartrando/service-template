@@ -26,7 +26,6 @@ RUN apt-get update \
         protobuf-compiler \
         libprotobuf-dev \
         wget \
-        netcat-openbsd \
     && rm -rf /var/lib/apt/lists/*
 
 RUN corepack enable && corepack prepare pnpm@11.9.0 --activate
@@ -41,10 +40,18 @@ RUN pnpm install --offline --frozen-lockfile --ignore-scripts
 RUN mkdir -p ./services/service-template/src/contracts/proto
 RUN pnpm --filter service-template proto:generate
 
+RUN pnpm --filter @shared/cache-store build
+RUN pnpm --filter @shared/state-store build
+RUN pnpm --filter @shared/timer build
 RUN pnpm --filter @shared/logger build
 RUN pnpm --filter @shared/grpc-client-manager build
 RUN pnpm --filter @shared/errors proto:generate
 RUN pnpm --filter @shared/errors build
+RUN pnpm --filter @shared/kafka-manager build
+RUN pnpm --filter @shared/elastic build
+RUN pnpm --filter @shared/pg-boss-manager build
+
+RUN pnpm --filter service-template prisma:generate
 
 # ---------- DEV ----------
 FROM deps AS dev
@@ -84,7 +91,6 @@ RUN apt-get update \
     && apt-get install -y --no-install-recommends \
         openssl \
         wget \
-        netcat-openbsd \
     && rm -rf /var/lib/apt/lists/*
 
 WORKDIR /usr/src/app
@@ -120,4 +126,6 @@ RUN printf "%s\n" "$VERSION" > VERSION
 
 LABEL org.opencontainers.image.version="$VERSION"
 
-CMD ["sh", "-c", "echo 'no predeploy step'"]
+WORKDIR /usr/src/app/services/service-template
+
+CMD ["pnpm", "--filter", "service-template", "migrate:deploy"]
